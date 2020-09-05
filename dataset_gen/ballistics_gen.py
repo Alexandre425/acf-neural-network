@@ -19,7 +19,7 @@ def random_time():
 
 # Generate a random position above the origin
 def random_dir():
-    rand = normalize(np.random.rand(3))
+    rand = normalize(np.random.rand(3)-0.5)
     if rand[2] < 0:
         rand[2] = -rand[2]
     return rand
@@ -73,7 +73,7 @@ samples = int(input("Number of data samples: "))
 # File has the following data per line
 # INPUTS (normalized) - target position, velocity, muzzle velocity, drag coefficient
 # OUTPUTS (normalized) - aim direction, fuze time
-f = open("training_data.txt", "w+")
+f = open("training_data.txt", "a+")
 
 i = 0
 while i < samples:
