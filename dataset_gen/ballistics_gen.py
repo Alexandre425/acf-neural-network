@@ -47,7 +47,6 @@ class Ballistics:
         self.vel = random_vel()
         self.muzzle_vel = random_muzzle_vel()
         self.drag_coef = random_drag_coef()
-        print("Aiming at", self.dir, "with flight time of", self.time, "muzzle vel of", self.muzzle_vel/39, "m/s and drag coef of", self.drag_coef)
 
     def solve(self):
         # Do the bullet flight

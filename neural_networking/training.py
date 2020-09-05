@@ -5,30 +5,26 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 
 # Make an empty list
-data = [[] for x in range(12)]
+X = []
+Y = []
 # Opening and parsing the file
 f = open("training_data.txt", "r")
 for lin in f:
     vals = lin.replace("[", '').replace("]", '').split()    # Remove the brackets and split every space
     vals = [float(x) for x in vals]
-    i = 0
-    # Put each of the values in it's list
-    for v in vals:
-        data[i].append(v)
-        i += 1
-# Atributing the correct data to the inputs and outputs
-X = data[0:8]
-Y = data[8:12]
+    X.append(vals[0:8])
+    Y.append(vals[8:12])
+
 # Convertyng to numpy arrays
-X = [np.array(x) for x in X]
-Y = [np.array(x) for x in Y]
+X = np.array([np.array(x) for x in X])
+Y = np.array([np.array(x) for x in Y])
 
 f.close()
 
 # Neural network model
 model = Sequential([
-    Dense(8, activation='relu', input_shape=(8,)),
-    Dense(8, activation='relu'),
+    Dense(12, activation='relu', input_shape=(8,)),
+    Dense(12, activation='relu'),
     Dense(4)
 ])
 
