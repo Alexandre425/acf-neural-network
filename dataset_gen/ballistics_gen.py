@@ -2,26 +2,35 @@ import numpy as np
 import random as rng
 import math
 
-POS_SCALE = 32000
+TIME_SCALE = 5
 VEL_SCALE = 6400
 MUZZLE_VEL_SCALE = 39370
 DRAG_COEF_SCALE = 2e-5
+POS_SCALE = 32000
+
+length = np.linalg.norm
+
+# Normalize a vector
+def normalize(vec):
+    return vec / np.linalg.norm(vec)
+
+def random_time():
+    return rng.uniform(0, TIME_SCALE)
 
 # Generate a random position above the origin
-def random_pos():
-    rand = (np.random.rand(3)-0.5)*2 * POS_SCALE
+def random_dir():
+    rand = normalize(np.random.rand(3))
     if rand[2] < 0:
         rand[2] = -rand[2]
     return rand
 
 # Random velocity
 def random_vel():
-    rand = (np.random.rand(3)-0.5)*2 * VEL_SCALE
-    return rand
+    return (np.random.rand(3)-0.5)*2 * VEL_SCALE
 
-# Random muzzle velocity from 200 to 1000 m/s
+# Random muzzle velocity from 400 to 1000 m/s
 def random_muzzle_vel():
-    return rng.uniform(MUZZLE_VEL_SCALE*0.2, MUZZLE_VEL_SCALE)
+    return rng.uniform(MUZZLE_VEL_SCALE*0.3, MUZZLE_VEL_SCALE)
 
 # Random drag coefficient
 def random_drag_coef():
@@ -33,49 +42,49 @@ class Ballistics:
     correction = 0.2
     threshold = 50
     def __init__(self):
-        self.pos = random_pos()
+        self.time = random_time()
+        self.dir = random_dir()
         self.vel = random_vel()
         self.muzzle_vel = random_muzzle_vel()
         self.drag_coef = random_drag_coef()
+        print("Aiming at", self.dir, "with flight time of", self.time, "muzzle vel of", self.muzzle_vel/39, "m/s and drag coef of", self.drag_coef)
 
-    def flight(self, dir):
+    def solve(self):
+        # Do the bullet flight
         self.bullet_pos = np.array([0,0,0])
-        self.time = 0
-        self.bullet_vel = dir * self.muzzle_vel
-        delta_dist = -1
-        last_dist = np.linalg.norm(self.pos)
-        while delta_dist < 0:
-            vel_length = np.linalg.norm(self.bullet_vel)
-            vel_normalized = self.bullet_vel / vel_length
+        cur_time = 0
+        self.bullet_vel = self.dir * self.muzzle_vel
+        while cur_time < self.time:
+            vel_length = length(self.bullet_vel)
+            vel_normalized = normalize(self.bullet_vel)
             vel_sq = vel_length**2
             drag = vel_normalized * self.drag_coef * vel_sq
 
-            next_pos = self.bullet_pos + self.bullet_vel * Ballistics.delta_time
+            self.bullet_pos = self.bullet_pos + self.bullet_vel * Ballistics.delta_time
             self.bullet_vel += (Ballistics.gravity - drag) * Ballistics.delta_time
+            cur_time += Ballistics.delta_time
+        # After a point in the path is reached (after self.time)
+        # Calculate where the target was at firing
+        self.pos = self.bullet_pos - self.vel*self.time
 
-            self.dist = np.linalg.norm(self.pos - next_pos)
-            delta_dist = self.dist - last_dist
-            last_dist = self.dist
-            self.bullet_pos = next_pos
-            self.time += Ballistics.delta_time
 
-    def solve(self):
-        aim_pos = self.pos 
-        direction = self.pos / np.linalg.norm(self.pos)
-        self.flight(direction)
-        # Get the error of the last iteration
-        error_vec = self.pos - self.bullet_pos
-        error = np.linalg.norm(error_vec)
-        while error > Ballistics.threshold:
-            # Compensate the direction to account for the error
-            aim_pos += error_vec * Ballistics.correction
-            direction = aim_pos / np.linalg.norm(aim_pos)
-            self.flight(direction)
-            error_vec = self.pos - self.bullet_pos
-            error = np.linalg.norm(error_vec)
-            print(error_vec)
-    
+samples = int(input("Number of data samples: "))
 
-bal = Ballistics()
-bal.solve()
-print(bal.dist)
+# File has the following data per line
+# INPUTS (normalized) - target position, velocity, muzzle velocity, drag coefficient
+# OUTPUTS (normalized) - aim direction, fuze time
+f = open("training_data.txt", "w+")
+
+i = 0
+while i < samples:
+    data = Ballistics()
+    data.solve()
+    sample = [data.pos/POS_SCALE, data.vel/VEL_SCALE, data.muzzle_vel/MUZZLE_VEL_SCALE, data.drag_coef, data.dir, data.time/TIME_SCALE]
+
+    string = ""
+    for x in sample:
+        string += str(x) + " "
+
+    f.write(string + "\n")
+    #f.write(str(data.pos) + " " + str(data.vel) + " " + str(data.muzzle_vel) + " " + str(data.drag_coef) + " " + str(data.dir) + " "  str(data.time) + "\n")
+    i += 1
