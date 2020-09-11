@@ -4,6 +4,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 import ballistics_gen as bgen
 import json
+import signal, os
 
 def read_ballistics(path):
     # Make an empty list
@@ -23,19 +24,26 @@ def read_ballistics(path):
 
     return X, Y
 
+def handler(signum, frame):
+    print("\nStopping training...")
+    global stop_training
+    stop_training = True
+
+signal.signal(signal.SIGINT, handler)
 ans = input("Train? (y/n) ")
 
 if ans == "y":
     # Load existing weights and biases
-    ans = input("Load? (y/n) ")
+    ans = input("Load saved model? (y/n) ")
     if ans == "y":
         model = keras.models.load_model("model.h5")
     else:
         # Neural network model
         model = Sequential([
-            Dense(16, activation='relu', input_shape=(8,)),
+            Dense(16, activation='relu', input_shape=(6,)),
             Dense(16, activation='relu'),
-            Dense(3)
+            Dense(16, activation='relu'),
+            Dense(4)
         ])
         model.compile(
             optimizer='adam',
@@ -43,13 +51,13 @@ if ans == "y":
             metrics=['mean_squared_error', 'mean_absolute_percentage_error']
         )
 
-    # Generate data
-    X, Y = bgen.generate_samples()
-    model.fit(x=X, y=Y, batch_size=100, epochs=8)
-
-    ans = input("Save? (y/n) ")
-    if ans == "y":
-        model.save('model.h5')
+    # Train until interrupted
+    global stop_training
+    stop_training = False
+    while not stop_training:
+        X, Y = bgen.generate_samples(10000)                 # Generate the data
+        model.fit(x=X, y=Y, batch_size=100, epochs=7)       # Fit the model to the data
+        model.save('model.h5')                              # Save the model
 else:
     ans = input("Test? (y/n) ")
     if ans == "y":

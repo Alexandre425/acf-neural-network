@@ -2,10 +2,10 @@ import numpy as np
 import random as rng
 import math
 
-TIME_SCALE = 5
+TIME_SCALE = 3
 VEL_SCALE = 6400
-MUZZLE_VEL_SCALE = 39370
-DRAG_COEF_SCALE = 2e-5
+MUZZLE_VEL = 400.16194283808 * 39.37
+DRAG_COEF = 5.8502517407202e-06
 POS_SCALE = 32000
 
 length = np.linalg.norm
@@ -30,11 +30,13 @@ def random_vel():
 
 # Random muzzle velocity from 400 to 1000 m/s
 def random_muzzle_vel():
-    return rng.uniform(MUZZLE_VEL_SCALE*0.3, MUZZLE_VEL_SCALE)
+    return 0
+    #return rng.uniform(MUZZLE_VEL_SCALE*0.3, MUZZLE_VEL_SCALE)
 
 # Random drag coefficient
 def random_drag_coef():
-    return rng.uniform(DRAG_COEF_SCALE*0.1, DRAG_COEF_SCALE)
+    return 0
+    #return rng.uniform(DRAG_COEF_SCALE*0.1, DRAG_COEF_SCALE)
 
 class SphericalCoord:
     """
@@ -71,14 +73,12 @@ class SphericalCoord:
 class Ballistics:
     delta_time = 0.015      # 15ms delta time
     gravity = np.array([0,0,-600])
-    correction = 0.2
-    threshold = 50
     def __init__(self):
         self.time = random_time()
         self.dir = random_dir()
         self.vel = random_vel()
-        self.muzzle_vel = random_muzzle_vel()
-        self.drag_coef = random_drag_coef()
+        self.muzzle_vel = MUZZLE_VEL
+        self.drag_coef = DRAG_COEF
 
     def solve(self):
         # Do the bullet flight
@@ -99,22 +99,24 @@ class Ballistics:
         self.pos = self.bullet_pos - self.vel*self.time
 
 
-def generate_samples():
-    samples = int(input("Number of data samples: "))
-    X = np.zeros([samples, 8])
-    Y = np.zeros([samples, 3])
+def generate_samples(samples):
+    X = np.zeros([samples, 6])
+    Y = np.zeros([samples, 4])
 
     i = 0
     while i < samples:
-        data = Ballistics()
-        data.solve()
+        d = Ballistics()
+        d.solve()
 
-        data.pos = SphericalCoord.from_nparray(data.pos).normalize(POS_SCALE)
-        data.vel = SphericalCoord.from_nparray(data.vel).normalize(VEL_SCALE)
-        data.dir = SphericalCoord.from_nparray(data.dir).normalize(1)
+        # Determine the intersection of the direction vector with the vertical plane aligned with the target's velocity
+        # Hopefully this will make it easier for the NN to digest
+        plane_normal = normalize(np.cross(np.array([0,0,1]), d.vel))        # Get the plane normal from the vel and up vector
+        length = np.dot(d.pos, plane_normal) / np.dot(d.dir, plane_normal)  # Get the length of the trace from the barrel
+        aim_pos = d.dir * length                                            # End pos of the trace is the aim pos
+        rel_aim_pos = aim_pos - d.pos
 
-        X[i] = np.array([data.pos.theta, data.pos.phi, data.pos.distance, data.vel.theta, data.vel.phi, data.vel.distance, data.muzzle_vel/MUZZLE_VEL_SCALE, data.drag_coef])
-        Y[i] = np.array([data.dir.theta - data.pos.theta, data.dir.phi - data.pos.phi, data.time/TIME_SCALE])
+        X[i] = np.array([d.pos[0]/POS_SCALE, d.pos[1]/POS_SCALE, d.pos[2]/POS_SCALE, d.vel[0]/VEL_SCALE, d.vel[1]/VEL_SCALE, d.vel[2]/VEL_SCALE])
+        Y[i] = np.array([rel_aim_pos[0]/VEL_SCALE, rel_aim_pos[1]/VEL_SCALE, rel_aim_pos[2]/VEL_SCALE, d.time/TIME_SCALE])
         i += 1
         if (i%(samples*0.01) == 0):
             print(f"Progress: {int(100*i/samples)}%", end='\r')
