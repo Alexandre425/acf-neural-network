@@ -25,9 +25,10 @@ def read_ballistics(path):
     return X, Y
 
 def handler(signum, frame):
-    print("\nStopping training...")
     global stop_training
-    stop_training = True
+    if not stop_training:
+        print("\nStopping training...")
+        stop_training = True
 
 signal.signal(signal.SIGINT, handler)
 ans = input("Train? (y/n) ")
@@ -40,10 +41,10 @@ if ans == "y":
     else:
         # Neural network model
         model = Sequential([
-            Dense(16, activation='relu', input_shape=(6,)),
+            Dense(16, activation='relu', input_shape=(5,)),
             Dense(16, activation='relu'),
             Dense(16, activation='relu'),
-            Dense(4)
+            Dense(2)
         ])
         model.compile(
             optimizer='adam',
@@ -63,14 +64,14 @@ else:
     if ans == "y":
         model = keras.models.load_model("model.h5")
 
-        X, Y = bgen.generate_samples()
+        X, Y = bgen.generate_samples(int(input("Samples: ")))
         model.evaluate(
             X, 
             Y
         )
         res = model.predict(X)
         for x,r,y in zip(X, res, Y):
-            print(f"Inputs / prediction / actual:\n{x}\n{r*360}{y*360}\n")
+            print(f"Inputs / prediction / actual:\n{x}\n{r[0]*6400, r[1]*3}\n{y[0]*6400, y[1]*3}\n")
 
 ans = input("Write w's and b's? (y/n) ")
 if ans == "y":

@@ -1,7 +1,10 @@
 import numpy as np
 import random as rng
 import math
+import time
+from multiprocessing import Process, Queue
 
+THREAD_COUNT = 4
 TIME_SCALE = 3
 VEL_SCALE = 6400
 MUZZLE_VEL = 400.16194283808 * 39.37
@@ -98,27 +101,47 @@ class Ballistics:
         # Calculate where the target was at firing
         self.pos = self.bullet_pos - self.vel*self.time
 
+def random_sample():
+    d = Ballistics()
+    d.solve()
+
+    # Simplify the position into two components
+    hori_dist = math.sqrt(d.pos[0]**2 + d.pos[1]**2)
+    vert_dist = d.pos[2] 
+    # Transform the velocity to a local axis
+    flat_to_target = np.copy(d.pos)
+    flat_to_target[2] = 0
+    flat_to_target = normalize(flat_to_target)
+    flat_perpendicular = np.array([flat_to_target[1], -flat_to_target[0], 0])   # Flip x and y and invert one to make a perpendicular vector
+    rel_vel = np.array([np.dot(flat_to_target, d.vel), np.dot(flat_perpendicular, d.vel), d.vel[2]])    # Localize the velocity (x is towards target, y is towards the right)
+
+    # Determine the intersection of the direction vector with the vertical plane aligned with the target's velocity
+    # Hopefully this will make it easier for the NN to digest
+    plane_normal = normalize(np.cross(np.array([0,0,1]), d.vel))        # Get the plane normal from the vel and up vector
+    length = np.dot(d.pos, plane_normal) / np.dot(d.dir, plane_normal)  # Get the length of the trace from the barrel
+    aim_pos = d.dir * length                                            # End pos of the trace is the aim pos
+    z_comp = aim_pos[2] - d.bullet_pos[2]                               # Compensation in the z axis relative to impact point
+
+    # Make a list of lists with X and Y
+    smp = [[hori_dist/POS_SCALE, vert_dist/POS_SCALE] + (rel_vel/VEL_SCALE).tolist(), [z_comp/VEL_SCALE, d.time/TIME_SCALE]]
+    return smp
+        
 
 def generate_samples(samples):
-    X = np.zeros([samples, 6])
-    Y = np.zeros([samples, 4])
+    smp_per_thread = int(samples / THREAD_COUNT)
+    processes = []
+    queue = Queue(THREAD_COUNT)
 
-    i = 0
-    while i < samples:
-        d = Ballistics()
-        d.solve()
-
-        # Determine the intersection of the direction vector with the vertical plane aligned with the target's velocity
-        # Hopefully this will make it easier for the NN to digest
-        plane_normal = normalize(np.cross(np.array([0,0,1]), d.vel))        # Get the plane normal from the vel and up vector
-        length = np.dot(d.pos, plane_normal) / np.dot(d.dir, plane_normal)  # Get the length of the trace from the barrel
-        aim_pos = d.dir * length                                            # End pos of the trace is the aim pos
-        rel_aim_pos = aim_pos - d.pos
-
-        X[i] = np.array([d.pos[0]/POS_SCALE, d.pos[1]/POS_SCALE, d.pos[2]/POS_SCALE, d.vel[0]/VEL_SCALE, d.vel[1]/VEL_SCALE, d.vel[2]/VEL_SCALE])
-        Y[i] = np.array([rel_aim_pos[0]/VEL_SCALE, rel_aim_pos[1]/VEL_SCALE, rel_aim_pos[2]/VEL_SCALE, d.time/TIME_SCALE])
-        i += 1
-        if (i%(samples*0.01) == 0):
-            print(f"Progress: {int(100*i/samples)}%", end='\r')
+    # Multiprocess the samples
+    processes = [Process(target=lambda smp,q: q.put([random_sample() for _ in range(smp)]), args=(smp_per_thread, queue)).start() for _ in range(THREAD_COUNT)]
+    # Get the data
+    Data = [queue.get() for _ in range(THREAD_COUNT)]
+    unfolded = [sample for sublist in Data for sample in sublist]
+    X = np.array([sample[0] for sample in unfolded])
+    Y = np.array([sample[1] for sample in unfolded])
     
     return X, Y
+
+
+if __name__ == '__main__':
+    print(random_sample())
