@@ -77,7 +77,7 @@ ans = input("Write w's and b's? (y/n) ")
 if ans == "y":
     model = keras.models.load_model("model.h5")
     vals = []
-    f = open("ascii_model_sph.txt", 'w+')
+    f = open("ascii_model.txt", 'w+')
     for l in model.layers:
         kp = {}
         weights, biases = l.get_weights()

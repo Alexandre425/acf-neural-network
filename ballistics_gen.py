@@ -17,19 +17,19 @@ length = np.linalg.norm
 def normalize(vec):
     return vec / np.linalg.norm(vec)
 
-def random_time():
-    return rng.uniform(0, TIME_SCALE)
+def random_time(rand):
+    return rand.uniform(0, TIME_SCALE)
 
 # Generate a random position above the origin
-def random_dir():
-    rand = normalize(np.random.rand(3)-0.5)
-    if rand[2] < 0:
-        rand[2] = -rand[2]
-    return rand
+def random_dir(rand):
+    rand_dir = normalize(np.array([rand.uniform(-1, 1) for _ in range(3)]))
+    if rand_dir[2] < 0:
+        rand_dir[2] = -rand_dir[2]
+    return rand_dir
 
 # Random velocity
-def random_vel():
-    return (np.random.rand(3)-0.5)*2 * VEL_SCALE
+def random_vel(rand):
+    return normalize(np.array([rand.uniform(-1, 1) for _ in range(3)])) * VEL_SCALE
 
 # Random muzzle velocity from 400 to 1000 m/s
 def random_muzzle_vel():
@@ -76,10 +76,11 @@ class SphericalCoord:
 class Ballistics:
     delta_time = 0.015      # 15ms delta time
     gravity = np.array([0,0,-600])
-    def __init__(self):
-        self.time = random_time()
-        self.dir = random_dir()
-        self.vel = random_vel()
+    def __init__(self, rand):
+        local_rand = rand
+        self.time = random_time(rand)
+        self.dir = random_dir(rand)
+        self.vel = random_vel(rand)
         self.muzzle_vel = MUZZLE_VEL
         self.drag_coef = DRAG_COEF
 
@@ -101,8 +102,13 @@ class Ballistics:
         # Calculate where the target was at firing
         self.pos = self.bullet_pos - self.vel*self.time
 
-def random_sample():
-    d = Ballistics()
+class LocalRNG:
+    def __init__(self):
+        self.rand = rng.Random()
+        self.rand.seed(rng.randint(0,999999))
+
+def random_sample(rand):
+    d = Ballistics(rand.rand)
     d.solve()
 
     # Simplify the position into two components
@@ -133,7 +139,7 @@ def generate_samples(samples):
     queue = Queue(THREAD_COUNT)
 
     # Multiprocess the samples
-    processes = [Process(target=lambda smp,q: q.put([random_sample() for _ in range(smp)]), args=(smp_per_thread, queue)).start() for _ in range(THREAD_COUNT)]
+    processes = [Process(target=lambda smp,q,rand: q.put([random_sample(rand) for _ in range(smp)]), args=(smp_per_thread, queue, LocalRNG())).start() for _ in range(THREAD_COUNT)]
     # Get the data
     Data = [queue.get() for _ in range(THREAD_COUNT)]
     unfolded = [sample for sublist in Data for sample in sublist]
@@ -144,4 +150,6 @@ def generate_samples(samples):
 
 
 if __name__ == '__main__':
-    print(random_sample())
+    X, Y = generate_samples(8)
+    print(X)
+    #print()
